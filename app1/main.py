@@ -2,6 +2,11 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app1.api.routes import router
+import uvicorn
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize language models on startup
 import nltk
@@ -53,12 +58,13 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+origins = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include router
@@ -76,11 +82,13 @@ async def root():
         }
     }
 
-# Get PORT from environment variable for Railway
+# Get PORT from environment variable for deployment platforms like Railway
 port = int(os.environ.get("PORT", 8000))
+host = os.environ.get("HOST", "0.0.0.0")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app1.main:app", host="0.0.0.0", port=port, reload=False)
+    # This block will only run when the script is executed directly, not when imported
+    print(f"Starting server on {host}:{port}")
+    uvicorn.run("app1.main:app", host=host, port=port, reload=False)
 
 

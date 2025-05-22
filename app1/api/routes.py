@@ -10,6 +10,10 @@ import librosa
 import numpy as np
 import requests
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class AudioURLInput(BaseModel):
     """Model for audio URL input"""
@@ -30,6 +34,11 @@ async def calculate_dynamic_lufs_threshold(file_path):
     Returns:
         float: Recommended LUFS threshold value
     """
+    # Get default threshold from environment variable or use 18.0
+    default_threshold = float(os.environ.get("LUFS_DEFAULT_THRESHOLD", 18.0))
+    min_threshold = float(os.environ.get("LUFS_MIN_THRESHOLD", 15.0))
+    max_threshold = float(os.environ.get("LUFS_MAX_THRESHOLD", 22.0))
+    
     try:
         # Load audio file
         y, sr = librosa.load(file_path, sr=None)
@@ -48,17 +57,17 @@ async def calculate_dynamic_lufs_threshold(file_path):
             
             # Adjust threshold based on audio characteristics
             if db_75 < -30:  # Very quiet audio
-                return 15.0  # More sensitive threshold
+                return min_threshold  # More sensitive threshold
             elif db_75 > -15:  # Very loud audio
-                return 22.0  # Less sensitive threshold
+                return max_threshold  # Less sensitive threshold
             else:
-                # Linear mapping between -30 and -15 dB to threshold range 15-22
-                return 15.0 + (22.0 - 15.0) * (db_75 + 30) / 15.0
+                # Linear mapping between -30 and -15 dB to threshold range min-max
+                return min_threshold + (max_threshold - min_threshold) * (db_75 + 30) / 15.0
         
-        return 18.0  # Default if calculation fails
+        return default_threshold  # Default if calculation fails
     except Exception as e:
         logging.error(f"Error calculating dynamic LUFS threshold: {e}")
-        return 18.0  # Default fallback
+        return default_threshold  # Default fallback
 
 async def download_file(url, target_path):
     """

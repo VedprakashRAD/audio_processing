@@ -157,9 +157,33 @@ install this in command prompt:
 - python -m spacy download en_core_web_sm
 - python -m nltk.downloader vader_lexicon
 
-## Deployment on Railway
+## Environment Variables
 
-This project is configured for easy deployment on Railway.
+This application supports dynamic configuration through environment variables. Below are the key environment variables you can use:
+
+### Server Configuration
+- `PORT`: The port to run the server on (default: 8000)
+- `HOST`: The host to run the server on (default: 0.0.0.0)
+- `ALLOWED_ORIGINS`: Comma-separated list of allowed origins for CORS (default: *)
+
+### Model Configuration
+- `WHISPER_MODEL`: The Whisper model size to use for transcription (options: tiny, base, small, medium, large; default: base)
+
+### LUFS Threshold Settings
+- `LUFS_DEFAULT_THRESHOLD`: Default LUFS threshold value if dynamic calculation fails (default: 18.0)
+- `LUFS_MIN_THRESHOLD`: Minimum LUFS threshold for very quiet audio (default: 15.0)
+- `LUFS_MAX_THRESHOLD`: Maximum LUFS threshold for very loud audio (default: 22.0)
+
+### API Keys
+- `GROQ_API_KEY`: Your GROQ API key for text summarization services
+
+## Deployment
+
+This project is configured for deployment on Railway and other container platforms:
+
+1. Set up the required environment variables on your platform
+2. Deploy using the Dockerfile or railway.json configuration
+3. The application will automatically run with the specified settings
 
 ### Prerequisites
 

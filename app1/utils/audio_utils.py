@@ -1,9 +1,16 @@
 import torchaudio.transforms as T
 from speechbrain.inference import SpeakerRecognition
 import whisper
+import os
+from dotenv import load_dotenv
 
-# Load Whisper model
-whisper_model = whisper.load_model("base")
+# Load environment variables
+load_dotenv()
+
+# Load Whisper model based on environment variable or default to "base"
+whisper_model_size = os.environ.get("WHISPER_MODEL", "base")
+print(f"Loading Whisper model: {whisper_model_size}")
+whisper_model = whisper.load_model(whisper_model_size)
 
 # Load SpeechBrain ECAPA-TDNN Speaker Encoder
 speaker_model = SpeakerRecognition.from_hparams(
