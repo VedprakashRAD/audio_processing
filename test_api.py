@@ -1,6 +1,7 @@
 import requests
 import os
 import sys
+import json
 
 def test_health_endpoint(base_url):
     """Test the health endpoint"""
@@ -17,49 +18,46 @@ def test_health_endpoint(base_url):
         print(f"Error: {response.text}")
         return False
 
-def test_audio_analysis(base_url, audio_file_path):
-    """Test the audio analysis endpoint"""
-    if not os.path.exists(audio_file_path):
-        print(f"Error: Audio file not found at {audio_file_path}")
-        return False
-    
+def test_audio_analysis_url(base_url, audio_url):
+    """Test the audio analysis endpoint with URL to audio file"""
     endpoint = f"{base_url}/api/v1/audioanalysis/"
     
-    with open(audio_file_path, "rb") as f:
-        files = {"file": f}
+    payload = {"url": audio_url}
+    headers = {"Content-Type": "application/json"}
+    
+    print(f"Sending URL request to {endpoint}...")
+    print(f"URL: {audio_url}")
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        print(f"Status code: {response.status_code}")
         
-        print(f"Sending request to {endpoint}...")
-        try:
-            response = requests.post(endpoint, files=files)
-            print(f"Status code: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Success: {result.get('success')}")
+            print(f"Message: {result.get('message')}")
             
-            if response.status_code == 200:
-                result = response.json()
-                print(f"Success: {result.get('success')}")
-                print(f"Message: {result.get('message')}")
+            if result.get('success') and 'data' in result:
+                data = result['data']
+                print(f"Data keys: {list(data.keys())}")
                 
-                if result.get('success') and 'data' in result:
-                    data = result['data']
-                    print(f"Data keys: {list(data.keys())}")
-                    
-                    if 'used_threshold' in data:
-                        print(f"Used LUFS threshold: {data['used_threshold']}")
-                    
-                    if 'transcription' in data:
-                        transcription = data['transcription']
-                        print(f"Transcription keys: {list(transcription.keys())}")
-                    
-                    return True
-                else:
-                    print("No data in response")
-                    return False
+                if 'used_threshold' in data:
+                    print(f"Used LUFS threshold: {data['used_threshold']}")
+                
+                if 'transcription' in data:
+                    transcription = data['transcription']
+                    print(f"Transcription keys: {list(transcription.keys())}")
+                
+                return True
             else:
-                result = response.json()
-                print(f"Error: {result.get('message', response.text)}")
+                print("No data in response")
                 return False
-        except Exception as e:
-            print(f"Error during request: {e}")
+        else:
+            result = response.json()
+            print(f"Error: {result.get('message', response.text)}")
             return False
+    except Exception as e:
+        print(f"Error during request: {e}")
+        return False
 
 if __name__ == "__main__":
     base_url = "http://localhost:8000"
@@ -69,16 +67,18 @@ if __name__ == "__main__":
     
     print(f"Testing API at {base_url}")
     
+    # Test health endpoint
     health_ok = test_health_endpoint(base_url)
     print(f"Health check {'passed' if health_ok else 'failed'}")
     
-    if health_ok and len(sys.argv) > 2:
-        audio_file_path = sys.argv[2]
-        
-        print("\n=== Testing audio analysis with automatic threshold ===")
-        analysis_ok = test_audio_analysis(base_url, audio_file_path)
-        print(f"Audio analysis test {'passed' if analysis_ok else 'failed'}")
-    elif health_ok:
-        print("Skipping audio analysis test - no audio file provided")
-        print("Usage: python test_api.py [base_url] [audio_file_path]")
-        print("Example: python test_api.py http://localhost:8000 test1.mp3") 
+    if health_ok:
+        # Test URL-based analysis if URL provided
+        if len(sys.argv) > 2:
+            audio_url = sys.argv[2]
+            print("\n=== Testing audio analysis with URL ===")
+            analysis_ok = test_audio_analysis_url(base_url, audio_url)
+            print(f"URL-based test {'passed' if analysis_ok else 'failed'}")
+        else:
+            print("Skipping audio analysis test - no URL provided")
+            print("Usage: python test_api.py [base_url] [audio_url]")
+            print("Example: python test_api.py http://localhost:8000 https://example.com/audio.mp3") 

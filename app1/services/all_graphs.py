@@ -55,62 +55,53 @@ async def plot_audio_with_speakers(audio_path, lufs_threshold_value=18):
 
         # Step 2: Perform diarization
         logging.info("Performing diarization...")
-        diarized_segments = diarize_with_speechbrain(audio_path, dynamic_speakers=True)
-        unique_speakers = sorted(set(seg["speaker"] for seg in diarized_segments))
-        num_speakers = len(unique_speakers)
-        logging.info(f"Diarization completed. Number of speakers: {num_speakers}")
+        try:
+            diarized_segments = diarize_with_speechbrain(audio_path, dynamic_speakers=True)
+            unique_speakers = sorted(set(seg["speaker"] for seg in diarized_segments))
+            num_speakers = len(unique_speakers)
+            logging.info(f"Diarization completed. Number of speakers: {num_speakers}")
+        except Exception as e:
+            logging.error(f"Error in diarization: {e}")
+            # Create a simplified single-speaker diarization as fallback
+            diarized_segments = []
+            for seg in segments:
+                diarized_segments.append({
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "speaker": "Speaker_0",
+                    "text": seg["text"],
+                    "sentiment": "neutral",
+                    "emotion": "neutral"
+                })
+            unique_speakers = ["Speaker_0"]
+            num_speakers = 1
+            logging.info("Using fallback single-speaker diarization")
 
         # Step 3: Load the full audio
         logging.info("Loading audio file...")
         waveform, sample_rate = torchaudio.load(audio_path)
         logging.info(f"Audio file loaded. Sample rate: {sample_rate}, Waveform shape: {waveform.shape}")
 
-        # Step 4: Extract embeddings
-        logging.info("Extracting embeddings...")
-        embeddings = []
-        valid_segments = []
+        # Step 4: Extract embeddings and calculate stats directly
+        logging.info("Calculating audio stats...")
+        
         for seg in diarized_segments:
             start_sample = int(seg['start'] * sample_rate)
             end_sample = int(seg['end'] * sample_rate)
             segment_audio = waveform[:, start_sample:end_sample]
-            emb = get_speaker_embedding(segment_audio, sample_rate)
-            if emb is not None:
-                embeddings.append(emb)
-                valid_segments.append(seg)
-
-        if len(embeddings) == 0:
-            raise ValueError("No valid embeddings found for clustering.")
-
-        embeddings = np.vstack(embeddings)
-        diarized_segments = valid_segments
-        logging.info(f"Embeddings extracted. Shape: {embeddings.shape}")
-        logging.info(f"Valid diarized segments: {len(diarized_segments)}")
-
-        # Step 5: Cluster embeddings
-        logging.info("Clustering embeddings...")
-        labels = KMeans(n_clusters=num_speakers, random_state=0).fit_predict(embeddings)
-        logging.info(f"Clustering completed. Labels: {labels}")
-
-        # Step 6: Calculate speaker stats
-        logging.info("Calculating speaker stats...")
-        for seg, label in zip(diarized_segments, labels):
-            speaker = f"Speaker_{label}"
-            seg["speaker"] = speaker
             text = seg.get("text", "")
             duration = seg["end"] - seg["start"]
             word_count = count_words(text)
-            start_sample = int(seg['start'] * sample_rate)
-            end_sample = int(seg['end'] * sample_rate)
-            segment_audio = waveform[:, start_sample:end_sample]
             avg_f0 = extract_pitch(segment_audio, sample_rate)
             lufs = compute_lufs(segment_audio, sample_rate)
             seg.update({
                 "lufs": lufs,
                 "speaking_rate": word_count / duration if duration > 0 else 0.0
             })
-        logging.info("Speaker stats calculated.")
+        
+        logging.info("Audio stats calculated.")
 
-        # Step 7 | Determine LUFS threshold
+        # Step 5: Determine LUFS threshold
         if lufs_threshold_value is not None:
             lufs_threshold = lufs_threshold_value
         else:

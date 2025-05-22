@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Query, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Body
 from fastapi.responses import JSONResponse
 from app1.services.transcription import transcribe_audio_file
 from app1.services.all_graphs import plot_audio_with_speakers
@@ -8,6 +8,12 @@ import os
 import json
 import librosa
 import numpy as np
+import requests
+from pydantic import BaseModel
+
+class AudioURLInput(BaseModel):
+    """Model for audio URL input"""
+    url: str
 
 router = APIRouter(
     prefix="/api/v1",
@@ -54,38 +60,65 @@ async def calculate_dynamic_lufs_threshold(file_path):
         logging.error(f"Error calculating dynamic LUFS threshold: {e}")
         return 18.0  # Default fallback
 
-@router.post("/audioanalysis/", summary="Analyze audio file", description="Upload an audio file for transcription, speaker diarization, sentiment analysis, and visualization")
+async def download_file(url, target_path):
+    """
+    Download file from URL to target path
+    
+    Args:
+        url: URL to download from
+        target_path: Path to save the file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        
+        with open(target_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        return True
+    except Exception as e:
+        logging.error(f"Error downloading file from {url}: {e}")
+        return False
+
+@router.post("/audioanalysis/", summary="Analyze audio file from URL", description="Provide a URL to an audio file for transcription, speaker diarization, sentiment analysis, and visualization")
 async def audio_analysis(
-    file: UploadFile = File(..., description="Audio file to analyze (MP3 format recommended)")
+    audio_data: AudioURLInput = Body(..., description="URL to audio file")
 ):
     """
-    Combined endpoint to return transcription and plot.
+    Endpoint to analyze audio from a URL.
     """
-    # Validate file
-    if not file.filename or not (file.filename.endswith('.mp3') or file.filename.endswith('.wav')):
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "success": False,
-                "message": "Only MP3 or WAV audio files are supported",
-                "data": None
-            }
-        )
-    
     try:
+        # Create a temporary file to store the audio
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            contents = await file.read()
-            if not contents:
+            temp_file_path = temp_file.name
+            
+            # Handle URL to audio file
+            audio_url = audio_data.url
+            if not audio_url.endswith('.mp3') and not audio_url.endswith('.wav'):
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={
                         "success": False,
-                        "message": "Empty file uploaded",
+                        "message": "Only MP3 or WAV audio files are supported",
                         "data": None
                     }
                 )
-            temp_file.write(contents)
-            temp_file_path = temp_file.name
+            
+            # Download the file
+            download_success = await download_file(audio_url, temp_file_path)
+            if not download_success:
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "success": False,
+                        "message": f"Failed to download audio file from URL: {audio_url}",
+                        "data": None
+                    }
+                )
 
         try:
             # Determine LUFS threshold value automatically
@@ -108,7 +141,9 @@ async def audio_analysis(
                     "data": {
                         "transcription": transcription_result,
                         "plot": plot,
-                        "used_threshold": used_threshold
+                        "used_threshold": used_threshold,
+                        "input_source": "url",
+                        "input_name": audio_data.url
                     }
                 }
             )

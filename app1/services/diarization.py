@@ -12,9 +12,14 @@ def estimate_num_speakers(embeddings, min_clusters=2, max_clusters=10):
     """
     Estimate the number of speakers dynamically using silhouette score.
     """
+    n_samples = len(embeddings)
+    
+    # Handle case where we don't have enough samples for clustering
+    if n_samples <= min_clusters:
+        return 1  # Return 1 speaker if we don't have enough samples
+    
     best_k = min_clusters
     best_score = -1
-    n_samples = len(embeddings)
     max_possible = min(max_clusters, n_samples - 1)
 
     for k in range(min_clusters, max_possible + 1):
@@ -77,19 +82,52 @@ def diarize_with_speechbrain(audio_path, dynamic_speakers=True, min_clusters=2, 
             raise ValueError("No segments found in audio")
 
         embeddings = np.vstack(embeddings)
+        
+        # Handle case where we have very few segments
+        if len(embeddings) == 1:
+            # Return a simplified result with a single speaker
+            diarized_segments = []
+            for i, seg in enumerate(valid_segments):
+                text = seg["text"]
+                combined_sentiment = ensemble_sentiment(text)
+                
+                # Get audio segment for emotion prediction
+                start_sample = int(seg['start'] * sample_rate)
+                end_sample = int(seg['end'] * sample_rate)
+                
+                segment_audio = waveform[:, start_sample:end_sample]
+                if segment_audio.numel() > 0:  
+                    emotion = predict_emotion(segment_audio[0], sample_rate)
+                else:
+                    emotion = "neutral"
+                
+                diarized_segments.append({
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "speaker": "Speaker_0",
+                    "text": text,
+                    "sentiment": combined_sentiment,
+                    "emotion": emotion
+                })
+            
+            return diarized_segments
 
         # Step 4: Estimate number of speakers if dynamic_speakers is True
         if dynamic_speakers:
             num_speakers = estimate_num_speakers(embeddings, min_clusters, max_clusters)
         else:
             num_speakers = min_clusters
+            
+        # Ensure we don't try to create more clusters than we have samples
+        if num_speakers >= len(embeddings):
+            num_speakers = 1
 
         # Step 5: Cluster embeddings into the determined number of speakers
         labels = KMeans(n_clusters=num_speakers, random_state=0).fit_predict(embeddings)
 
         # Step 6: Assign speaker labels and sentiments
         diarized_segments = []
-        for i, seg in enumerate(segments):
+        for i, seg in enumerate(valid_segments):
             speaker = f"Speaker_{labels[i]}"
             text = seg["text"]
             combined_sentiment = ensemble_sentiment(text)
