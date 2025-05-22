@@ -42,4 +42,14 @@ tmpdir/
 
 # OS specific files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Test files
+test_*.py
+*_test.py
+
+# Pycache folders in all subdirectories
+**/__pycache__/ 
