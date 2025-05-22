@@ -27,11 +27,10 @@ def test_audio_analysis(base_url, audio_file_path):
     
     with open(audio_file_path, "rb") as f:
         files = {"file": f}
-        params = {"lufs_threshold_value": 18.0}
         
         print(f"Sending request to {endpoint}...")
         try:
-            response = requests.post(endpoint, files=files, params=params)
+            response = requests.post(endpoint, files=files)
             print(f"Status code: {response.status_code}")
             
             if response.status_code == 200:
@@ -42,6 +41,9 @@ def test_audio_analysis(base_url, audio_file_path):
                 if result.get('success') and 'data' in result:
                     data = result['data']
                     print(f"Data keys: {list(data.keys())}")
+                    
+                    if 'used_threshold' in data:
+                        print(f"Used LUFS threshold: {data['used_threshold']}")
                     
                     if 'transcription' in data:
                         transcription = data['transcription']
@@ -72,6 +74,8 @@ if __name__ == "__main__":
     
     if health_ok and len(sys.argv) > 2:
         audio_file_path = sys.argv[2]
+        
+        print("\n=== Testing audio analysis with automatic threshold ===")
         analysis_ok = test_audio_analysis(base_url, audio_file_path)
         print(f"Audio analysis test {'passed' if analysis_ok else 'failed'}")
     elif health_ok:

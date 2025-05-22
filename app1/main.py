@@ -30,6 +30,17 @@ app = FastAPI(
     - **Text Summarization**: Generates concise summaries of the transcribed text.
     - **Speaker Statistics**: Provides detailed statistics for each speaker.
     - **Graphical Analysis**: Generates visual representations of audio data.
+    - **Dynamic LUFS Thresholding**: Automatically determines optimal loudness thresholds based on audio content.
+    
+    ## LUFS Threshold Explanation
+    
+    The LUFS (Loudness Units Full Scale) threshold is used to detect significant audio events and speaker changes:
+    
+    - **Lower threshold** (15.0): More sensitive, better for quiet recordings or detecting subtle changes
+    - **Default threshold** (18.0): Balanced for most audio content
+    - **Higher threshold** (22.0): Less sensitive, better for noisy recordings or focusing on louder speech
+    
+    The API can automatically determine the optimal threshold based on the audio characteristics.
     """,
     version="1.0.0",
     contact={
